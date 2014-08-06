@@ -10,9 +10,13 @@ type Future<'T> =
     member OnComplete<'U, 'Result> : f:(Try<'U> -> 'Result) -> unit
   end
 
-type Server<'msg> =
+module Future = begin
+  val get : Future<'T> -> 'T
+end
+
+type Server<'Msg> =
   class
-    new : ('msg -> unit) -> Server<'msg>
+    new : ('Msg -> unit) -> Server<'Msg>
     member Listen : address:string * port:int -> unit
     member Start : unit -> unit
   end
