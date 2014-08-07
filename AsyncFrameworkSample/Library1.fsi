@@ -20,3 +20,12 @@ type Server<'Msg> =
     member Listen : address:string * port:int -> unit
     member Start : unit -> unit
   end
+
+type Client<'Msg> =
+  class
+    new : (Client<'Msg> -> unit) -> Client<'Msg>
+    member Connect : address:string * port:int -> unit
+    member Post : 'Msg -> unit
+    member PostAndReply : 'Msg -> 'Msg
+    member PostAndAsyncReply : 'Msg -> Future<'Msg>
+  end
