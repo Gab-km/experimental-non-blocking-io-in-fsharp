@@ -8,6 +8,7 @@ type Future<'T> =
   class
     new : (unit -> 'T) -> Future<'T>
     member OnComplete<'U, 'Result> : f:(Try<'U> -> 'Result) -> unit
+    member Result : 'T option
   end
 
 module Future = begin
