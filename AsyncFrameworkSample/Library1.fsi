@@ -6,7 +6,7 @@ type Try<'T> =
 
 type Future<'T> =
   class
-    new : unit -> Future<'T>
+    new : (unit -> 'T) -> Future<'T>
     member OnComplete<'U, 'Result> : f:(Try<'U> -> 'Result) -> unit
   end
 
