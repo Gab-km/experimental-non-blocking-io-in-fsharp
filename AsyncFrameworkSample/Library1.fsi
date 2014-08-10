@@ -7,12 +7,12 @@ type Try<'T> =
 type Future<'T> =
   class
     new : (unit -> 'T) -> Future<'T>
-    member OnComplete<'U, 'Result> : f:(Try<'U> -> 'Result) -> unit
+    member OnComplete : f:(Try<'T> -> unit) -> unit
     member Result : 'T option
   end
 
 module Future = begin
-  val get : Future<'T> -> 'T
+  val get : Future<'T> -> 'T    // Is it needed?
 end
 
 type Server<'Msg> =
