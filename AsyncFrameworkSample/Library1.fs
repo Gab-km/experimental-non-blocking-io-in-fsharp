@@ -38,8 +38,14 @@ type Server<'Msg>(f: ('Msg -> unit)) =
     member self.Listen(address:string, port:int) = ()
     member self.Start() = ()
 
-type Client<'Msg>(f: (Client<'Msg> -> unit)) =
-    member self.Connect(address:string, port:int) = ()
-    member self.Post(message: 'Msg) = ()
-    member self.PostAndReply(message: 'Msg) = message
-    member self.PostAndAsyncReply(message: 'Msg) = Future(fun () -> message)
+type Client() =
+    let client = new System.Net.Sockets.TcpClient()     // 安全に破棄する方法を追加すること
+    member self.Connect(address:string, port:int) = client.Connect(address, port)
+    member self.Post(message: byte[]) =
+        use ns = client.GetStream()
+        if ns.CanWrite
+            then ns.BeginWrite(message, 0, message.Length, (fun _ -> ()), ns) |> ignore
+    member self.PostAndReply(message: byte[]) = message
+    member self.PostAndAsyncReply(message: byte[]) =
+        use ns = client.GetStream()
+        Future(fun () -> message)

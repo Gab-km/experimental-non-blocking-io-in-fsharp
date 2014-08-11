@@ -22,11 +22,11 @@ type Server<'Msg> =
     member Start : unit -> unit
   end
 
-type Client<'Msg> =
+type Client =
   class
-    new : (Client<'Msg> -> unit) -> Client<'Msg>
+    new : unit -> Client
     member Connect : address:string * port:int -> unit
-    member Post : 'Msg -> unit
-    member PostAndReply : 'Msg -> 'Msg
-    member PostAndAsyncReply : 'Msg -> Future<'Msg>
+    member Post : byte[] -> unit
+    member PostAndReply : byte[] -> byte[]
+    member PostAndAsyncReply : byte[] -> Future<byte[]>
   end
