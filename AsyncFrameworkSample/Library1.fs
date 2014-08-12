@@ -39,7 +39,9 @@ type Server<'Msg>(f: ('Msg -> unit)) =
     member self.Start() = ()
 
 type Client() =
-    let client = new System.Net.Sockets.TcpClient()     // 安全に破棄する方法を追加すること
+    let client = new System.Net.Sockets.TcpClient()
+    interface System.IDisposable with
+        member self.Dispose() = if client <> null then client.Close()
     member self.Connect(address:string, port:int) = client.Connect(address, port)
     member self.Post(message: byte[]) =
         use ns = client.GetStream()

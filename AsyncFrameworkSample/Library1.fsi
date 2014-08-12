@@ -24,6 +24,7 @@ type Server<'Msg> =
 
 type Client =
   class
+    interface System.IDisposable
     new : unit -> Client
     member Connect : address:string * port:int -> unit
     member Post : byte[] -> unit
