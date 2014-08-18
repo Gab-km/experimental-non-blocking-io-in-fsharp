@@ -45,9 +45,13 @@ type Client() =
     member self.Connect(address:string, port:int) = client.Connect(address, port)
     member self.Post(message: byte[]) =
         use ns = client.GetStream()
-        if ns.CanWrite
-            then ns.BeginWrite(message, 0, message.Length, (fun _ -> ()), ns) |> ignore
-    member self.PostAndReply(message: byte[]) = message
+        try
+            ns.BeginWrite(message, 0, message.Length, (fun _ -> ()), ns)
+            |> ignore
+            |> Success
+        with
+            | ex -> Failure(ex)
+    member self.PostAndReply(message: byte[]) = Success(message)
     member self.PostAndAsyncReply(message: byte[]) =
         use ns = client.GetStream()
-        Future(fun () -> message)
+        Future(fun () -> message) |> Success

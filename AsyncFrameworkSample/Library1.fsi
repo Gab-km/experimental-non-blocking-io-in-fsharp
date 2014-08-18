@@ -27,7 +27,7 @@ type Client =
     interface System.IDisposable
     new : unit -> Client
     member Connect : address:string * port:int -> unit
-    member Post : byte[] -> unit
-    member PostAndReply : byte[] -> byte[]
-    member PostAndAsyncReply : byte[] -> Future<byte[]>
+    member Post : byte[] -> Try<unit>
+    member PostAndReply : byte[] -> Try<byte[]>
+    member PostAndAsyncReply : byte[] -> Try<Future<byte[]>>
   end
