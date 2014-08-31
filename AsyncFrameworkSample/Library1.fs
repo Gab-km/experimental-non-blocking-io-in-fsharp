@@ -46,12 +46,40 @@ type Client() =
     member self.Post(message: byte[]) =
         use ns = client.GetStream()
         try
-            ns.BeginWrite(message, 0, message.Length, (fun _ -> ()), ns)
-            |> ignore
+            let writeAsync() = async {
+                    ns.Write(message, 0, message.Length)
+                }
+            writeAsync()
+            |> Async.RunSynchronously
             |> Success
         with
             | ex -> Failure(ex)
     member self.PostAndReply(message: byte[]) = Success(message)
     member self.PostAndAsyncReply(message: byte[]) =
         use ns = client.GetStream()
-        Future(fun () -> message) |> Success
+        let writeResult =
+            try
+                let writeAsync() = async {
+                        ns.Write(message, 0, message.Length)
+                    }
+                writeAsync()
+                |> Async.RunSynchronously
+                |> Success
+            with
+                | ex -> Failure(ex)
+        match writeResult with
+        | Success(_) ->
+            try
+                Future(fun () ->
+                    let received = Array.init 256 (fun _ ->0uy)
+                    let readAsync() = async {
+                            ns.Read(received, 0, received.Length)
+                            |> ignore
+                        }
+                    readAsync()
+                    |> Async.RunSynchronously
+                    received)
+                |> Success
+            with
+                | ex -> Failure(ex)
+        | Failure(ex) -> Failure(ex)

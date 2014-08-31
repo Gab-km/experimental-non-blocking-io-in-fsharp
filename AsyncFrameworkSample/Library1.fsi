@@ -27,6 +27,7 @@ type Client =
     interface System.IDisposable
     new : unit -> Client
     member Connect : address:string * port:int -> unit
+    // 以下のメソッド、それぞれの戻り値が Try 型で本当にいいのか？
     member Post : byte[] -> Try<unit>
     member PostAndReply : byte[] -> Try<byte[]>
     member PostAndAsyncReply : byte[] -> Try<Future<byte[]>>
