@@ -20,10 +20,10 @@ type Future<'T>(f: (unit -> 'T)) =
         Async.StartWithContinuations(messageAsync,
             (fun reply -> result <- Some(reply)
                           match whenCompleted with
-                          | Some(f) -> f (Success(reply))
+                          | Some(delg) -> delg (Success(reply))
                           | None    -> ()),
             (fun exn   -> match whenCompleted with
-                          | Some(f) -> f (Failure(exn))
+                          | Some(delg) -> delg (Failure(exn))
                           | None    -> ()),
             (fun _     -> ()))
     member self.OnComplete(f) = whenCompleted <- Some(f)    // 処理完了後に OnComplete を設定した場合はどうあるべきか？
@@ -43,8 +43,7 @@ type Client() =
     interface System.IDisposable with
         member self.Dispose() = if client <> null then client.Close()
     member self.Connect(address:string, port:int) = client.Connect(address, port)
-    member self.Post(message: byte[]) =
-        use ns = client.GetStream()
+    member private self.postWithNetworkStream(message: byte[], ns: System.Net.Sockets.NetworkStream) =
         try
             let writeAsync() = async {
                     ns.Write(message, 0, message.Length)
@@ -54,30 +53,31 @@ type Client() =
             |> Success
         with
             | ex -> Failure(ex)
-    member self.PostAndReply(message: byte[]) = Success(message)
-    member self.PostAndAsyncReply(message: byte[]) =
+    member self.Post(message: byte[]) =
         use ns = client.GetStream()
-        let writeResult =
+        self.postWithNetworkStream(message, ns)
+    member self.PostAndReply(message: byte[]) =
+        use ns = client.GetStream()
+        let writeResult = self.postWithNetworkStream(message, ns)
+        match writeResult with
+        | Success(_) ->
             try
-                let writeAsync() = async {
-                        ns.Write(message, 0, message.Length)
-                    }
-                writeAsync()
-                |> Async.RunSynchronously
-                |> Success
+                let received = Array.init 256 (fun _ ->0uy)
+                ns.Read(received, 0, received.Length)
+                |> ignore
+                Success(received)
             with
                 | ex -> Failure(ex)
+        | Failure(ex) -> Failure(ex)
+    member self.PostAndAsyncReply(message: byte[]) =
+        use ns = client.GetStream()
+        let writeResult = self.postWithNetworkStream(message, ns)
         match writeResult with
         | Success(_) ->
             try
                 Future(fun () ->
                     let received = Array.init 256 (fun _ ->0uy)
-                    let readAsync() = async {
-                            ns.Read(received, 0, received.Length)
-                            |> ignore
-                        }
-                    readAsync()
-                    |> Async.RunSynchronously
+                    ns.Read(received, 0, received.Length) |> ignore
                     received)
                 |> Success
             with
