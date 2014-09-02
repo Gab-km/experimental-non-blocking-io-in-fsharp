@@ -8,11 +8,11 @@ type Future<'T> =
   class
     new : (unit -> 'T) -> Future<'T>
     member OnComplete : f:(Try<'T> -> unit) -> unit
-    member Result : 'T option
+    member Value : Try<'T> option
   end
 
 module Future = begin
-  val get : Future<'T> -> 'T    // Is it needed?
+  val map : ('T -> 'U) -> Future<'T> -> Future<'U>
 end
 
 type Server<'Msg> =

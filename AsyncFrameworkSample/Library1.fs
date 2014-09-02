@@ -5,8 +5,9 @@ type Try<'T> =
   | Failure of System.Exception
 
 type Future<'T>(f: (unit -> 'T)) =
-    let mutable result : 'T option = None
-    let mutable whenCompleted : (Try<'T> -> unit) option = None
+    // 成功と失敗の結果をフィールドに持つべきか？
+    let mutable value : Try<'T> option = None
+    let mutable whenCompleted : (Try<'T> -> unit) = fun t -> ()
     do
         let agent = MailboxProcessor<(unit -> 'T) * AsyncReplyChannel<'T>>.Start(fun inbox ->
             let rec loop n =
@@ -18,20 +19,27 @@ type Future<'T>(f: (unit -> 'T)) =
             loop 0)
         let messageAsync = agent.PostAndAsyncReply(fun replyChannel -> f, replyChannel)
         Async.StartWithContinuations(messageAsync,
-            (fun reply -> result <- Some(reply)
-                          match whenCompleted with
-                          | Some(delg) -> delg (Success(reply))
-                          | None    -> ()),
-            (fun exn   -> match whenCompleted with
-                          | Some(delg) -> delg (Failure(exn))
-                          | None    -> ()),
+            (fun reply -> value <- Some(Success(reply))
+                          whenCompleted <| Success(reply)),
+            (fun exn   -> value <- Some(Failure(exn))
+                          whenCompleted <| Failure(exn)),
             (fun _     -> ()))
-    member self.OnComplete(f) = whenCompleted <- Some(f)    // 処理完了後に OnComplete を設定した場合はどうあるべきか？
-    [<System.Obsolete>]member self.Value = f()              // おそらく今後なくなる
-    member self.Result = result
+    member self.OnComplete(f) = whenCompleted <- f          // 処理完了後に OnComplete を設定した場合はどうあるべきか？
+    member self.Value = value
 
 module Future = begin
-  let get (f: Future<'T>) = f.Value
+  let map (f: 'T -> 'U) (ft: Future<'T>) =
+    match ft.Value with
+    | Some(result) ->
+        match result with
+        | Success(v) -> Future(fun () -> f v)
+        | Failure(e) -> Future(fun () -> raise e)
+    | None         -> Future(fun () ->
+                        let gen: (unit -> 'U) ref = ref (fun () -> failwith "")     // ここの実装は良くない
+                        ft.OnComplete (function
+                            | Success(v) -> gen := (fun () -> f v)
+                            | Failure(e) -> gen := (fun () -> raise e))
+                        () |> !gen)
 end
 
 type Server<'Msg>(f: ('Msg -> unit)) =
