@@ -4,6 +4,17 @@ type Try<'T> =
   | Success of 'T
   | Failure of System.Exception
 
+type TryingBuilder() =
+    member self.Bind(x, f) =
+        match x with
+        | Success(value) ->
+            try
+                f value
+            with
+                | ex -> Failure(ex)
+        | Failure(ex) -> Failure(ex)
+    member self.Return(x) = Success(x)
+
 type Future<'T>(f: (unit -> 'T)) =
     // 成功と失敗の結果をフィールドに持つべきか？
     let mutable value : Try<'T> option = None
@@ -23,8 +34,8 @@ type Future<'T>(f: (unit -> 'T)) =
                           whenCompleted <| Success(reply)),
             (fun exn   -> value <- Some(Failure(exn))
                           whenCompleted <| Failure(exn)),
-            (fun _     -> ()))
-    member self.OnComplete(f) = whenCompleted <- f          // 処理完了後に OnComplete を設定した場合はどうあるべきか？
+            (fun _     -> printfn "cancelled."))
+    member self.OnComplete(f) = whenCompleted <- f          // イベントに書きなおそうかな。
     member self.Value = value
 
 module Future = begin
@@ -40,7 +51,12 @@ module Future = begin
                             | Success(v) -> gen := (fun () -> f v)
                             | Failure(e) -> gen := (fun () -> raise e))
                         () |> !gen)
+
+  let trying = TryingBuilder()
+
 end
+
+open Future
 
 type Server<'Msg>(f: ('Msg -> unit)) =
     member self.Listen(address:string, port:int) = ()
@@ -52,42 +68,32 @@ type Client() =
         member self.Dispose() = if client <> null then client.Close()
     member self.Connect(address:string, port:int) = client.Connect(address, port)
     member private self.postWithNetworkStream(message: byte[], ns: System.Net.Sockets.NetworkStream) =
-        try
+        trying {
             let writeAsync() = async {
                     ns.Write(message, 0, message.Length)
                 }
-            writeAsync()
-            |> Async.RunSynchronously
-            |> Success
-        with
-            | ex -> Failure(ex)
+            let result = writeAsync() |> Async.RunSynchronously
+            return result
+        }
     member self.Post(message: byte[]) =
         use ns = client.GetStream()
         self.postWithNetworkStream(message, ns)
     member self.PostAndReply(message: byte[]) =
         use ns = client.GetStream()
-        let writeResult = self.postWithNetworkStream(message, ns)
-        match writeResult with
-        | Success(_) ->
-            try
-                let received = Array.init 256 (fun _ ->0uy)
-                ns.Read(received, 0, received.Length)
-                |> ignore
-                Success(received)
-            with
-                | ex -> Failure(ex)
-        | Failure(ex) -> Failure(ex)
+        trying {
+            let! writeResult = self.postWithNetworkStream(message, ns)
+            
+            let received = Array.init 256 (fun _ -> 0uy)
+            ns.Read(received, 0, received.Length) |> ignore
+            return received
+        }
     member self.PostAndAsyncReply(message: byte[]) =
         use ns = client.GetStream()
-        let writeResult = self.postWithNetworkStream(message, ns)
-        match writeResult with
-        | Success(_) ->
-            try
-                Future(fun () ->
-                    let received = Array.init 256 (fun _ ->0uy)
-                    ns.Read(received, 0, received.Length) |> ignore
-                    received)
-                |> Success
-            with
-                | ex -> Failure(ex)
-        | Failure(ex) -> Failure(ex)
+        trying {
+            let! writeResult = self.postWithNetworkStream(message, ns)
+            let f = Future(fun () ->
+                        let received = Array.init 256 (fun _ ->0uy)
+                        ns.Read(received, 0, received.Length) |> ignore
+                        received)
+            return f
+        }

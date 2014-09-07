@@ -4,6 +4,13 @@ type Try<'T> =
   | Success of 'T
   | Failure of System.Exception
 
+type TryingBuilder =
+  class
+    new : unit -> TryingBuilder
+    member Bind : x:Try<'b> * f:('b -> Try<'c>) -> Try<'c>
+    member Return : x:'a -> Try<'a>
+  end
+
 type Future<'T> =
   class
     new : (unit -> 'T) -> Future<'T>
@@ -13,6 +20,7 @@ type Future<'T> =
 
 module Future = begin
   val map : ('T -> 'U) -> Future<'T> -> Future<'U>
+  val trying : TryingBuilder        // Future モジュールが持つべきかどうかは再考の余地あり
 end
 
 type Server<'Msg> =
