@@ -20,7 +20,7 @@ type Future<'T>(f: (unit -> 'T)) =
     let mutable value : Try<'T> option = None
     let mutable whenCompleted : (Try<'T> -> unit) = fun t -> ()
     do
-        let agent = MailboxProcessor<(unit -> 'T) * AsyncReplyChannel<'T>>.Start(fun inbox ->
+        use agent = new MailboxProcessor<(unit -> 'T) * AsyncReplyChannel<'T>>(fun inbox ->
             let rec loop n =
                 async {
                     let! (body, replyChannel) = inbox.Receive()
@@ -28,12 +28,13 @@ type Future<'T>(f: (unit -> 'T)) =
                     return! loop (n + 1)
                 }
             loop 0)
+        agent.Error.Add(fun error -> value <- Some(Failure(error)); whenCompleted <| Failure(error))
+        agent.Start()
         let messageAsync = agent.PostAndAsyncReply(fun replyChannel -> f, replyChannel)
         Async.StartWithContinuations(messageAsync,
             (fun reply -> value <- Some(Success(reply))
                           whenCompleted <| Success(reply)),
-            (fun exn   -> value <- Some(Failure(exn))
-                          whenCompleted <| Failure(exn)),
+            (fun _     -> ()),
             (fun _     -> printfn "cancelled."))
     member self.OnComplete(f) = whenCompleted <- f          // イベントに書きなおそうかな。
     member self.Value = value
